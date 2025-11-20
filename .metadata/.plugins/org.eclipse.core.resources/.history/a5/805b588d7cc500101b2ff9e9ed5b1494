@@ -1,0 +1,367 @@
+/*
+ * traffic_light.c
+ * Đèn giao thông 2 chiều + hiển thị thời gian còn lại trên 4 LED 7-segment
+ */
+
+#include "traffic_light.h"
+#include "global.h"
+#include "software_timer.h"
+#include "sevenseg.h"
+#include "button.h"
+
+static int red_main    = 7;
+static int red_cross   = 7;
+static int yellow_main = 3;
+static int yellow_cross= 3;
+static int green_main  = 4;
+static int green_cross = 4;
+
+static int display_index = 0;
+
+// Tắt hết đèn giao thông
+void clearTrafficLights(void) {
+    HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+}
+
+// Cập nhật 7-segment (4 digit)
+void update7SEG(int index) {
+    // Tắt hết trước
+    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_SET);
+
+    int num = 0;
+    switch (index) {
+        case 0:
+            num = red_main / 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET);
+            break;
+        case 1:
+            num = red_main % 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET);
+            break;
+        case 2:
+            num = green_cross / 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_RESET);
+            break;
+        case 3:
+            num = green_cross % 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_RESET);
+            break;
+    }
+}
+
+void fsm_traffic_run(void) {
+    switch (status) {
+        case INIT:
+            clearTrafficLights();
+            red_main = red_dur / 100;
+            red_cross = red_dur / 100;
+            yellow_main = yellow_dur / 100;
+            yellow_cross = yellow_dur / 100;
+            green_main = green_dur / 100;
+            green_cross = green_dur / 100;
+
+            status = RED_GREEN;
+            setTimer1(green_dur);   // thời gian xanh đường ngang
+            setTimer3(25);          // quét 7seg
+            setTimer4(100);         // giảm số mỗi 1s
+            display_index = 0;
+            break;
+
+        case RED_GREEN: // Đỏ dọc - Xanh ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = RED_YELLOW;
+                setTimer1(yellow_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (red_main > 0) red_main--;
+                if (green_cross > 0) green_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case RED_YELLOW: // Đỏ dọc Vàng ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = GREEN_RED;
+                setTimer1(green_dur);
+                green_main = green_dur / 100;
+                red_cross = red_dur / 100;
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (red_main > 0) red_main--;
+                if (yellow_cross > 0) yellow_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case GREEN_RED: // Xanh dọc Đỏ ngang
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = YELLOW_RED;
+                setTimer1(yellow_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (green_main > 0) green_main--;
+                if (red_cross > 0) red_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case YELLOW_RED: // Vàng dọc Đỏ ngang
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = RED_GREEN;
+                red_main = red_dur / 100;
+                green_cross = green_dur / 100;
+                setTimer1(green_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (yellow_main > 0) yellow_main--;
+                if (red_cross > 0) red_cross--;
+                setTimer4(100);
+            }
+            break;
+    }
+
+    // Bấm nút 1 để vào chế độ cài đặt
+    if (isButton1Press()) {
+        status = CONFIG_RED;
+        clearTrafficLights();
+    }
+}/*
+ * traffic_light.c
+ * Đèn giao thông 2 chiều + hiển thị thời gian còn lại trên 4 LED 7-segment
+ */
+
+#include "traffic_light.h"
+#include "global.h"
+#include "software_timer.h"
+#include "sevenseg.h"
+#include "button.h"
+
+static int red_main    = 7;
+static int red_cross   = 7;
+static int yellow_main = 3;
+static int yellow_cross= 3;
+static int green_main  = 4;
+static int green_cross = 4;
+
+static int display_index = 0;
+
+// Tắt hết đèn giao thông
+void clearTrafficLights(void) {
+    HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+}
+
+// Cập nhật 7-segment (4 digit)
+void update7SEG(int index) {
+    // Tắt hết trước
+    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_SET);
+
+    int num = 0;
+    switch (index) {
+        case 0:
+            num = red_main / 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET);
+            break;
+        case 1:
+            num = red_main % 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET);
+            break;
+        case 2:
+            num = green_cross / 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_RESET);
+            break;
+        case 3:
+            num = green_cross % 10;
+            displayDigit(num);
+            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_RESET);
+            break;
+    }
+}
+
+void fsm_traffic_run(void) {
+    switch (status) {
+        case INIT:
+            clearTrafficLights();
+            red_main = red_dur / 100;
+            red_cross = red_dur / 100;
+            yellow_main = yellow_dur / 100;
+            yellow_cross = yellow_dur / 100;
+            green_main = green_dur / 100;
+            green_cross = green_dur / 100;
+
+            status = RED_GREEN;
+            setTimer1(green_dur);   // thời gian xanh đường ngang
+            setTimer3(25);          // quét 7seg
+            setTimer4(100);         // giảm số mỗi 1s
+            display_index = 0;
+            break;
+
+        case RED_GREEN: // Đỏ dọc - Xanh ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = RED_YELLOW;
+                setTimer1(yellow_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (red_main > 0) red_main--;
+                if (green_cross > 0) green_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case RED_YELLOW: // Đỏ dọc Vàng ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = GREEN_RED;
+                setTimer1(green_dur);
+                green_main = green_dur / 100;
+                red_cross = red_dur / 100;
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (red_main > 0) red_main--;
+                if (yellow_cross > 0) yellow_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case GREEN_RED: // Xanh dọc Đỏ ngang
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = YELLOW_RED;
+                setTimer1(yellow_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (green_main > 0) green_main--;
+                if (red_cross > 0) red_cross--;
+                setTimer4(100);
+            }
+            break;
+
+        case YELLOW_RED: // Vàng dọc Đỏ ngang
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+
+            if (timer1_flag) {
+                status = RED_GREEN;
+                red_main = red_dur / 100;
+                green_cross = green_dur / 100;
+                setTimer1(green_dur);
+            }
+            if (timer3_flag) {
+                update7SEG(display_index);
+                display_index = (display_index + 1) % 4;
+                setTimer3(25);
+            }
+            if (timer4_flag) {
+                if (yellow_main > 0) yellow_main--;
+                if (red_cross > 0) red_cross--;
+                setTimer4(100);
+            }
+            break;
+    }
+
+    // Bấm nút 1 để vào chế độ cài đặt
+    if (isButton1Press()) {
+        status = CONFIG_RED;
+        clearTrafficLights();
+    }
+}

@@ -1,0 +1,96 @@
+/*
+ * traffic_config.c
+ * Chế độ cài đặt RED / YELLOW / GREEN – chuẩn lab
+ */
+
+#include "traffic_config.h"
+#include "global.h"
+#include "software_timer.h"
+#include "sevenseg.h"
+#include "button.h"
+
+static int set_value = 0;
+static int red_set = 7, yel_set = 2, gre_set = 5;
+static int display_index = 0;
+
+void displayConfig7SEG(int mode) { // mode = 2,3,4
+    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_SET);
+
+    switch (display_index % 4) {
+        case 0: displayDigit(mode);     HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET); break;
+        case 1: displayDigit(mode);     HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET); break;
+        case 2: displayDigit(set_value/10); HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_RESET); break;
+        case 3: displayDigit(set_value%10); HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_RESET); break;
+    }
+}
+
+void fsm_traffic_config(void) {
+    switch (status) {
+        case CONFIG_RED:
+            if (timer2_flag) {
+                HAL_GPIO_TogglePin(RED1_GPIO_Port, RED1_Pin);
+                HAL_GPIO_TogglePin(RED2_GPIO_Port, RED2_Pin);
+                setTimer2(50);
+            }
+            if (timer5_flag) {
+                displayConfig7SEG(2);
+                display_index++;
+                setTimer5(4);
+            }
+            if (isButton2Press()) set_value = (set_value + 1) % 100;
+            if (isButton3Press()) {
+                red_set = set_value;
+                set_value = 0;
+                status = CONFIG_YELLOW;
+                display_index = 0;
+            }
+            break;
+
+        case CONFIG_YELLOW:
+            if (timer2_flag) {
+                HAL_GPIO_TogglePin(YEL1_GPIO_Port, YEL1_Pin);
+                HAL_GPIO_TogglePin(YEL2_GPIO_Port, YEL2_Pin);
+                setTimer2(50);
+            }
+            if (timer5_flag) {
+                displayConfig7SEG(3);
+                display_index++;
+                setTimer5(4);
+            }
+            if (isButton2Press()) set_value = (set_value + 1) %100;
+            if (isButton3Press()) {
+                yel_set = set_value;
+                set_value = 0;
+                status = CONFIG_GREEN;
+                display_index = 0;
+            }
+            break;
+
+        case CONFIG_GREEN:
+            if (timer2_flag) {
+                HAL_GPIO_TogglePin(GRE1_GPIO_Port, GRE1_Pin);
+                HAL_GPIO_TogglePin(GRE2_GPIO_Port, GRE2_Pin);
+                setTimer2(50);
+            }
+            if (timer5_flag) {
+                displayConfig7SEG(4);
+                display_index++;
+                setTimer5(4);
+            }
+            if (isButton2Press()) set_value = (set_value + 1) %100;
+            if (isButton3Press()) gre_set = set_value;
+            if (isButton1Press()) {
+                if (red_set == gre_set + yel_set && red_set > 0) {
+                    red_dur    = red_set    * 100;
+                    yellow_dur = yel_set    * 100;
+                    green_dur  = gre_set    * 100;
+                }
+                status = INIT;
+                clearAllLeds();
+            }
+            break;
+    }
+}

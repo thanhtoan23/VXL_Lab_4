@@ -1,0 +1,157 @@
+/*
+ * scheduler.c
+ *
+ * Created on: 18 thg 11, 2025
+ * Author: PC LEGION
+ */
+
+#include "scheduler.h"
+#include <stdio.h>
+
+sTasks SCH_tasks_G[SCH_MAX_TASKS];
+uint8_t current_index_task = 0;
+
+// --- CÁC HÀM TIỆN ÍCH RIÊNG (PRIVATE) ---
+// Giúp duy trì mảng SCH_tasks_G luôn được sắp xếp theo thời gian chạy
+static void SCH_Delete_Task_at_Index(uint8_t index) {
+    if (index >= current_index_task) return;
+
+    // Nếu tác vụ bị xóa KHÔNG phải là tác vụ cuối cùng:
+    // Cập nhật Delta Delay của tác vụ kế tiếp (nếu có)
+    if (index < current_index_task - 1) {
+        SCH_tasks_G[index + 1].Delay += SCH_tasks_G[index].Delay;
+    }
+
+    // Dịch chuyển các tác vụ còn lại để lấp đầy khoảng trống
+    for (int i = index; i < current_index_task - 1; i++) {
+        SCH_tasks_G[i] = SCH_tasks_G[i + 1];
+    }
+
+    // Xóa tác vụ cuối cùng (cũ) và giảm số lượng tác vụ
+    SCH_tasks_G[current_index_task - 1].pTask = NULL;
+    SCH_tasks_G[current_index_task - 1].Delay = 0;
+    SCH_tasks_G[current_index_task - 1].Period = 0;
+    SCH_tasks_G[current_index_task - 1].RunMe = 0;
+    current_index_task--;
+}
+
+// --- CÁC HÀM CHÍNH (PUBLIC) ---
+
+void SCH_Init(void){
+	current_index_task = 0;
+    // Khởi tạo tất cả các phần tử (để đảm bảo sạch sẽ)
+    for (int i = 0; i < SCH_MAX_TASKS; i++) {
+        SCH_tasks_G[i].pTask = NULL;
+        SCH_tasks_G[i].Delay = 0;
+        SCH_tasks_G[i].Period = 0;
+        SCH_tasks_G[i].RunMe = 0;
+        SCH_tasks_G[i].TaskID = 0;
+    }
+}
+
+void SCH_Add_Task ( void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD ){
+    if (current_index_task >= SCH_MAX_TASKS) {
+        // Lỗi: Bộ lập lịch đã đầy
+        return;
+    }
+
+    uint32_t Time_to_Run = DELAY;
+    int i = 0;
+
+    // 1. TÌM VỊ TRÍ ĐỂ CHÈN (Sắp xếp theo Delta Delay)
+    // Duyệt qua danh sách để tìm vị trí thích hợp (khi Time_to_Run < Delay của tác vụ đó)
+    while ((i < current_index_task) && (Time_to_Run >= SCH_tasks_G[i].Delay)) {
+        Time_to_Run -= SCH_tasks_G[i].Delay; // Giảm độ trễ tích lũy
+        i++;
+    }
+    // Tại đây, 'i' là index để chèn, và 'Time_to_Run' là Delta Delay mới.
+
+    // 2. DỊCH CHUYỂN CÁC TÁC VỤ SAU ĐÓ
+    for (int j = current_index_task; j > i; j--) {
+        SCH_tasks_G[j] = SCH_tasks_G[j - 1];
+    }
+
+    // 3. CHÈN TÁC VỤ MỚI
+    SCH_tasks_G[i].pTask = pFunction;
+    SCH_tasks_G[i].Delay = Time_to_Run;
+    SCH_tasks_G[i].Period = PERIOD;
+    SCH_tasks_G[i].RunMe = 0;
+    // Gán TaskID duy nhất (có thể sử dụng một biến đếm toàn cục khác)
+    SCH_tasks_G[i].TaskID = current_index_task; // Chỉ dùng index tạm thời cho đơn giản
+
+    // 4. CẬP NHẬT DELTA DELAY CỦA TÁC VỤ KẾ TIẾP (nếu có)
+    if (i < current_index_task) {
+        SCH_tasks_G[i + 1].Delay -= Time_to_Run;
+    }
+
+    current_index_task++;
+}
+
+
+/**
+ * @brief Cập nhật bộ lập lịch (gọi trong ngắt định thời)
+ * @details Độ phức tạp O(1) - chỉ giảm Delay của tác vụ đầu tiên.
+ */
+void SCH_Update(void)
+{
+    if (current_index_task > 0 && SCH_tasks_G[0].Delay > 0){
+        SCH_tasks_G[0].Delay--;
+    }
+    // Không cần vòng lặp for duyệt qua tất cả các tác vụ
+}
+
+
+/**
+ * @brief Kiểm tra và thực thi các tác vụ đã sẵn sàng
+ * @details Độ phức tạp O(1) trong trường hợp thông thường (1 tác vụ hết hạn),
+ * O(N) trong trường hợp xấu nhất (tất cả N tác vụ hết hạn cùng lúc).
+ */
+void SCH_Dispatch_Tasks(void){
+    // Kiểm tra liên tục miễn là tác vụ đầu tiên đã hết thời gian chờ
+    while (current_index_task > 0 && SCH_tasks_G[0].Delay == 0) {
+        // Tác vụ đầu tiên đã hết thời gian chờ -> Đánh dấu để chạy
+        SCH_tasks_G[0].RunMe += 1;
+
+        // CHẠY TÁC VỤ
+        // Lưu ý: Nếu tác vụ cần chạy lại (PERIOD > 0), nó sẽ được
+        // SẮP XẾP LẠI vào danh sách sau khi chạy.
+        if (SCH_tasks_G[0].RunMe > 0){
+            SCH_tasks_G[0].RunMe--; // Giảm RunMe
+
+            // Thực thi tác vụ
+            (*SCH_tasks_G[0].pTask)();
+        }
+
+        // TÁI LẬP LỊCH HOẶC XÓA
+        if (SCH_tasks_G[0].Period > 0) {
+            // Tác vụ định kỳ -> Tái lập lịch
+            // Lưu các thông số của tác vụ hiện tại trước khi xóa/thêm
+            void (*temp_pTask)() = SCH_tasks_G[0].pTask;
+            uint32_t temp_Period = SCH_tasks_G[0].Period;
+            uint32_t temp_TaskID = SCH_tasks_G[0].TaskID;
+
+            // Xóa tác vụ đầu tiên khỏi vị trí hiện tại (và cập nhật Delta Delay của tác vụ kế tiếp)
+            SCH_Delete_Task_at_Index(0);
+
+            // Thêm tác vụ này vào lại danh sách với Delay = Period
+            // Hàm Add_Task sẽ tự động sắp xếp lại nó vào đúng vị trí
+            SCH_Add_Task(temp_pTask, temp_Period, temp_Period);
+        } else {
+            // Tác vụ chạy một lần (One-shot) -> Xóa
+            SCH_Delete_Task_at_Index(0);
+        }
+    }
+}
+
+/**
+ * @brief Xóa một tác vụ bất kỳ theo ID (Độ phức tạp O(N))
+ */
+void SCH_Delete_Task(uint32_t ID) {
+    for (int i = 0; i < current_index_task; i++) {
+        if (SCH_tasks_G[i].TaskID == ID) {
+            SCH_Delete_Task_at_Index(i);
+            return;
+        }
+    }
+    // Lỗi: Không tìm thấy ID
+}

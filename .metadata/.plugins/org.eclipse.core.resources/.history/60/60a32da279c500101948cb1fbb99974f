@@ -1,0 +1,64 @@
+///*
+// * scheduler.h
+// *
+// *  Created on: 18 thg 11, 2025
+// *      Author: PC LEGION
+// */
+//
+//#ifndef INC_SCHEDULER_H_
+//#define INC_SCHEDULER_H_
+//
+//#include<stdint.h>
+//
+//typedef struct{
+//	void (*pTask)(void);
+//	uint32_t Delay;
+//	uint32_t Period;
+//	uint8_t  RunMe;
+//
+//	uint32_t TaskID;
+//}sTasks;
+//
+//#define SCH_MAX_TASKS 40
+//
+//void SCH_Init(void);
+//
+//uint32_t SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD);
+//
+//void SCH_Update(void);
+//
+//void SCH_Dispatch_Tasks(void);
+//
+//uint8_t SCH_Delete_Task(uint32_t taskID);
+//
+//#endif /* INC_SCHEDULER_H_ */
+
+
+
+#ifndef SCHEDULER_H
+#define SCHEDULER_H
+
+#include <stdint.h>
+
+// Task structure
+typedef struct {
+    void (* pTask)(void);    // Pointer to the task
+    uint32_t Delay;          // Delay (ticks) until the function will be run
+    uint32_t Period;         // Interval (ticks) between subsequent runs
+    uint8_t RunMe;           // Incremented when task is due to execute
+    uint32_t TaskID;         // Task ID
+} sTask;
+
+// Scheduler configuration
+#define SCH_MAX_TASKS 10
+
+// Function prototypes
+void SCH_Init(void);
+void SCH_Update(void);
+void SCH_Dispatch_Tasks(void);
+uint32_t SCH_Add_Task(void (* pFunction)(), uint32_t DELAY, uint32_t PERIOD);
+uint8_t SCH_Delete_Task(uint32_t taskID);
+
+extern sTask SCH_tasks_G[SCH_MAX_TASKS];
+
+#endif

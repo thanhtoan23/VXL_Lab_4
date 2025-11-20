@@ -1,0 +1,40 @@
+#include "scheduler.h"
+
+static sTask SCH_tasks[SCH_MAX_TASKS];
+static uint8_t task_count = 0;
+
+void SCH_Init(void) {
+    task_count = 0;
+}
+
+void SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+    if (task_count < SCH_MAX_TASKS) {
+        SCH_tasks[task_count].pTask  = pFunction;
+        SCH_tasks[task_count].Delay  = DELAY;
+        SCH_tasks[task_count].Period = PERIOD;
+        SCH_tasks[task_count].RunMe  = 0;
+        task_count++;
+    }
+}
+
+void SCH_Update(void) {
+    for (int i = 0; i < task_count; i++) {
+        if (SCH_tasks[i].Delay > 0) {
+            SCH_tasks[i].Delay--;
+        } else {
+            SCH_tasks[i].RunMe = 1;
+            if (SCH_tasks[i].Period > 0) {
+                SCH_tasks[i].Delay = SCH_tasks[i].Period;
+            }
+        }
+    }
+}
+
+void SCH_Dispatch_Tasks(void) {
+    for (int i = 0; i < task_count; i++) {
+        if (SCH_tasks[i].RunMe > 0) {
+            (*SCH_tasks[i].pTask)();
+            SCH_tasks[i].RunMe = 0;
+        }
+    }
+}

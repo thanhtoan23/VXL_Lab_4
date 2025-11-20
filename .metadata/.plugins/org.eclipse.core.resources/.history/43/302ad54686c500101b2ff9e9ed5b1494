@@ -1,0 +1,117 @@
+#include "scheduler.h"
+#include <stddef.h>
+// Global variables
+sTask SCH_tasks_G[SCH_MAX_TASKS];
+static sTask* SCH_wheels[WHEEL_SIZE];
+uint32_t current_tick = 0;
+static uint32_t task_count = 0;
+
+void SCH_Init(void) {
+    // 1. Khởi tạo Task Pool (O(N) hoặc O(1) nếu dùng memset)
+    // memset(SCH_tasks_G, 0, sizeof(SCH_tasks_G));
+
+    // 2. Khởi tạo Timing Wheels (O(W) - O(256))
+    for(int i = 0; i < WHEEL_SIZE; i++) {
+        SCH_wheels[i] = NULL;
+    }
+    current_tick = 0;
+    task_count = 0;
+}
+
+// O(1) trung bình (Amortized)
+uint32_t SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+    if(task_count >= SCH_MAX_TASKS || pFunction == NULL) {
+        return SCH_MAX_TASKS;
+    }
+
+    // Tìm khe trống trong Task Pool (O(N) worst-case, nhưng thường rất nhanh)
+    uint32_t task_index = SCH_MAX_TASKS;
+    for(uint32_t i = 0; i < SCH_MAX_TASKS; i++) {
+        if(SCH_tasks_G[i].pTask == NULL) {
+            task_index = i;
+            break;
+        }
+    }
+    if(task_index == SCH_MAX_TASKS) return SCH_MAX_TASKS;
+
+    uint32_t execute_time = current_tick + DELAY + 1; // +1 vì tick hiện tại
+
+    // Setup task
+    SCH_tasks_G[task_index].pTask = pFunction;
+    SCH_tasks_G[task_index].execute_time = execute_time;
+    SCH_tasks_G[task_index].period = PERIOD;
+    SCH_tasks_G[task_index].active = 1;
+
+    // Thêm vào Wheel (O(1))
+    uint32_t wheel_index = execute_time & WHEEL_MASK;
+    SCH_tasks_G[task_index].next = SCH_wheels[wheel_index];
+    SCH_wheels[wheel_index] = &SCH_tasks_G[task_index];
+
+    task_count++;
+    return task_index;
+}
+
+// O(k) (Chạy trong ISR) - Rất nhanh
+void SCH_Update(void) {
+    // 1. Tăng Tick (O(1))
+    current_tick++;
+
+    // 2. Tính vị trí Wheel hiện tại (O(1))
+    uint32_t wheel_index = current_tick & WHEEL_MASK;
+
+    sTask* current = SCH_wheels[wheel_index];
+    sTask* prev = NULL;
+
+    // 3. Duyệt danh sách tại Bucket hiện tại (O(k))
+    while(current != NULL) {
+        sTask* next = current->next;
+
+        // Kiểm tra tác vụ đến hạn
+        if(current->execute_time == current_tick && current->active) {
+
+            // Xóa tác vụ khỏi vị trí hiện tại (O(1))
+            if(prev == NULL) {
+                SCH_wheels[wheel_index] = next;
+            } else {
+                prev->next = next;
+            }
+
+            if(current->period > 0) {
+                // Tái lập lịch (Reschedule) periodic task (O(1))
+                current->execute_time = current_tick + current->period;
+
+                // Thêm vào vị trí Wheel mới (O(1))
+                uint32_t new_wheel_index = current->execute_time & WHEEL_MASK;
+                current->next = SCH_wheels[new_wheel_index];
+                SCH_wheels[new_wheel_index] = current;
+
+            } else {
+                // One-shot task: Xóa vĩnh viễn
+                current->pTask = NULL;
+                task_count--;
+            }
+            // Không cần cập nhật 'prev' vì tác vụ hiện tại đã bị xóa/di chuyển
+        } else {
+            prev = current;
+        }
+
+        current = next;
+    }
+}
+
+// O(k) (Chạy trong Main Loop) - Rất nhanh
+void SCH_Dispatch_Tasks(void) {
+    // Duyệt lại Bucket hiện tại để chạy các tác vụ đã đến hạn
+    uint32_t wheel_index = current_tick & WHEEL_MASK;
+
+    sTask* current = SCH_wheels[wheel_index];
+
+    while(current != NULL) {
+        // Chỉ chạy các task đến hạn và còn active (O(k))
+        if(current->execute_time == current_tick && current->active && current->pTask != NULL) {
+            // Thực thi tác vụ
+            (*current->pTask)();
+        }
+        current = current->next;
+    }
+}

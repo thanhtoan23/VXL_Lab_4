@@ -1,0 +1,130 @@
+//#include "scheduler.h"
+//
+//static sTask SCH_tasks[SCH_MAX_TASKS];
+//static uint8_t task_count = 0;
+//
+//void SCH_Init(void) {
+//    task_count = 0;
+//}
+//
+//void SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+//    if (task_count < SCH_MAX_TASKS) {
+//        SCH_tasks[task_count].pTask  = pFunction;
+//        SCH_tasks[task_count].Delay  = DELAY;
+//        SCH_tasks[task_count].Period = PERIOD;
+//        SCH_tasks[task_count].RunMe  = 0;
+//        task_count++;
+//    }
+//}
+//
+//void SCH_Update(void) {
+//    for (int i = 0; i < task_count; i++) {
+//        if (SCH_tasks[i].Delay > 0) {
+//            SCH_tasks[i].Delay--;
+//        } else {
+//            SCH_tasks[i].RunMe = 1;
+//            if (SCH_tasks[i].Period > 0) {
+//                SCH_tasks[i].Delay = SCH_tasks[i].Period;
+//            }
+//        }
+//    }
+//}
+//
+//void SCH_Dispatch_Tasks(void) {
+//    for (int i = 0; i < task_count; i++) {
+//        if (SCH_tasks[i].RunMe > 0) {
+//            (*SCH_tasks[i].pTask)();
+//            SCH_tasks[i].RunMe = 0;
+//        }
+//    }
+//}
+
+
+#include "scheduler.h"
+
+static sTask SCH_tasks[SCH_MAX_TASKS];
+
+void SCH_Init(void)
+{
+    for (int i = 0; i < SCH_MAX_TASKS; i++) {
+        SCH_tasks[i].pTask  = 0;
+        SCH_tasks[i].delay  = 0;
+        SCH_tasks[i].period = 0;
+        SCH_tasks[i].runMe  = 0;
+        SCH_tasks[i].active = 0;
+    }
+}
+
+uint8_t SCH_Add_Task(void (*func)(void), uint32_t delay, uint32_t period)
+{
+    uint8_t index = 0;
+
+    // tìm slot rỗng
+    while ((index < SCH_MAX_TASKS) && SCH_tasks[index].active) {
+        index++;
+    }
+    if (index == SCH_MAX_TASKS) return 255;   // FULL
+
+    // tính delay tương đối
+    uint32_t total = 0;
+    for (uint8_t i = 0; i < index; i++) {
+        total += SCH_tasks[i].delay;
+    }
+
+    SCH_tasks[index].pTask  = func;
+    SCH_tasks[index].period = period;
+    SCH_tasks[index].active = 1;
+
+    // chuyển delay tuyệt đối sang delay tương đối
+    if (delay > total) {
+        SCH_tasks[index].delay = delay - total;
+    } else {
+        SCH_tasks[index].delay = 0;
+    }
+
+    return index;
+}
+
+uint8_t SCH_Delete_Task(uint8_t ID)
+{
+    if (ID >= SCH_MAX_TASKS || SCH_tasks[ID].active == 0)
+        return 1;
+
+    SCH_tasks[ID].active = 0;
+    SCH_tasks[ID].pTask  = 0;
+    SCH_tasks[ID].runMe  = 0;
+
+    return 0;
+}
+
+void SCH_Update(void)
+{
+    // giảm delay task đầu tiên
+    if (SCH_tasks[0].active) {
+        if (SCH_tasks[0].delay > 0)
+            SCH_tasks[0].delay--;
+
+        if (SCH_tasks[0].delay == 0) {
+            SCH_tasks[0].runMe = 1;
+        }
+    }
+}
+
+void SCH_Dispatch_Tasks(void)
+{
+    if (SCH_tasks[0].runMe == 1) {
+
+        (*SCH_tasks[0].pTask)();  // chạy task
+
+        SCH_tasks[0].runMe = 0;
+
+        if (SCH_tasks[0].period > 0) {
+            // nếu periodic → dời lại thời điểm chạy
+            SCH_tasks[0].delay = SCH_tasks[0].period;
+        } else {
+            // nếu one-shot → xóa
+            SCH_tasks[0].active = 0;
+            SCH_tasks[0].pTask  = 0;
+        }
+    }
+}

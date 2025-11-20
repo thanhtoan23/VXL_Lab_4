@@ -1,0 +1,215 @@
+//#include "scheduler.h"
+//
+//static sTask SCH_tasks[SCH_MAX_TASKS];
+//static uint8_t task_count = 0;
+//
+//void SCH_Init(void) {
+//    task_count = 0;
+//}
+//
+//void SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+//    if (task_count < SCH_MAX_TASKS) {
+//        SCH_tasks[task_count].pTask  = pFunction;
+//        SCH_tasks[task_count].Delay  = DELAY;
+//        SCH_tasks[task_count].Period = PERIOD;
+//        SCH_tasks[task_count].RunMe  = 0;
+//        task_count++;
+//    }
+//}
+//
+//void SCH_Update(void) {
+//    for (int i = 0; i < task_count; i++) {
+//        if (SCH_tasks[i].Delay > 0) {
+//            SCH_tasks[i].Delay--;
+//        } else {
+//            SCH_tasks[i].RunMe = 1;
+//            if (SCH_tasks[i].Period > 0) {
+//                SCH_tasks[i].Delay = SCH_tasks[i].Period;
+//            }
+//        }
+//    }
+//}
+//
+//void SCH_Dispatch_Tasks(void) {
+//    for (int i = 0; i < task_count; i++) {
+//        if (SCH_tasks[i].RunMe > 0) {
+//            (*SCH_tasks[i].pTask)();
+//            SCH_tasks[i].RunMe = 0;
+//        }
+//    }
+//}
+//
+//
+//
+
+
+#include "scheduler.h"
+#include <stddef.h> // Cần cho NULL
+
+static sTask SCH_tasks[SCH_MAX_TASKS];
+// Thay thế task_count bằng Sch_Task_Count
+uint32_t Sch_Task_Count = 0;
+#define ERROR_SCH_TOO_MANY_TASKS 0x01
+#define RETURN_NORMAL   1
+#define RETURN_ERROR    0
+
+// Khai báo sớm hàm Delete (cần dùng nội bộ)
+uint8_t SCH_Delete_Task(uint32_t taskID);
+
+// ----------------------------------------------------
+// CÁC HÀM HỖ TRỢ MIN-HEAP O(log N)
+// ----------------------------------------------------
+
+static void swap_tasks(uint32_t i, uint32_t j) {
+    sTask temp = SCH_tasks[i];
+    SCH_tasks[i] = SCH_tasks[j];
+    SCH_tasks[j] = temp;
+}
+
+static void heap_up(uint32_t index) {
+    uint32_t parent_index = (index - 1) / 2;
+    while (index != 0 && SCH_tasks[index].Delay < SCH_tasks[parent_index].Delay) {
+        swap_tasks(index, parent_index);
+        index = parent_index;
+        parent_index = (index - 1) / 2;
+    }
+}
+
+static void heap_down(uint32_t index) {
+    uint32_t smallest = index;
+    uint32_t left = 2 * index + 1;
+    uint32_t right = 2 * index + 2;
+
+    if (left < Sch_Task_Count && SCH_tasks[left].Delay < SCH_tasks[smallest].Delay) {
+        smallest = left;
+    }
+    if (right < Sch_Task_Count && SCH_tasks[right].Delay < SCH_tasks[smallest].Delay) {
+        smallest = right;
+    }
+
+    if (smallest != index) {
+        swap_tasks(index, smallest);
+        heap_down(smallest);
+    }
+}
+
+// ----------------------------------------------------
+// CÁC HÀM SCHEDULER CHÍNH (Đã tối ưu O(log N))
+// ----------------------------------------------------
+
+void SCH_Init(void) {
+    Sch_Task_Count = 0;
+    // Khởi tạo mảng (đảm bảo sạch)
+    for (int i = 0; i < SCH_MAX_TASKS; i++) {
+        SCH_tasks[i].pTask  = NULL;
+        SCH_tasks[i].Delay  = 0;
+        SCH_tasks[i].Period = 0;
+        SCH_tasks[i].RunMe  = 0;
+    }
+}
+
+uint32_t SCH_Add_Task(void (*pFunction)(), uint32_t DELAY, uint32_t PERIOD) {
+    if (Sch_Task_Count >= SCH_MAX_TASKS) {
+        // Xử lý lỗi
+        return NO_TASK_ID;
+    }
+
+    uint32_t index = Sch_Task_Count;
+    SCH_tasks[index].pTask = pFunction;
+    SCH_tasks[index].Delay = DELAY;
+    SCH_tasks[index].Period = PERIOD;
+    SCH_tasks[index].RunMe = 0;
+
+    Sch_Task_Count++;
+
+    // Đẩy task lên để duy trì tính chất Min-Heap O(log N)
+    heap_up(index);
+
+    return index;
+}
+
+// Hàm Xóa Task (chỉ đánh dấu và đẩy xuống đáy O(log N))
+uint8_t SCH_Delete_Task(uint32_t taskID) {
+    // Để xóa Task ở vị trí bất kỳ trong Heap là phức tạp.
+    // Ta chỉ cần đánh dấu nó không hoạt động bằng cách đặt pTask = NULL,
+    // và đẩy nó xuống đáy để dọn dẹp sau.
+    if (taskID >= SCH_MAX_TASKS || SCH_tasks[taskID].pTask == NULL) {
+        return RETURN_ERROR;
+    }
+
+    SCH_tasks[taskID].pTask = NULL;
+    SCH_tasks[taskID].Delay = 0xFFFFFFFF; // Tăng Delay tối đa
+
+    // Đẩy task xuống để nó chìm xuống và không bao giờ nằm ở Gốc O(log N)
+    heap_down(taskID);
+
+    return RETURN_NORMAL;
+}
+
+
+// Hàm Cập nhật (GỌI TRONG ISR TIMER) O(log N)
+void SCH_Update(void) {
+    if (Sch_Task_Count == 0) {
+        return;
+    }
+
+    uint32_t top_index = 0;
+
+    // 1. Chỉ giảm Delay của Task ở Gốc O(1)
+    if (SCH_tasks[top_index].Delay > 0) {
+        SCH_tasks[top_index].Delay--;
+    }
+
+    // 2. Nếu Task ở Gốc đến hạn chạy
+    if (SCH_tasks[top_index].Delay == 0) {
+
+        // Tráo đổi Gốc (Task đã chạy) với phần tử cuối cùng của Heap
+        swap_tasks(top_index, Sch_Task_Count - 1);
+        Sch_Task_Count--; // Giảm số lượng Heap
+
+        // Đẩy phần tử mới ở Gốc xuống để duy trì tính chất Heap O(log N)
+        heap_down(top_index);
+
+        // Task đã chạy bây giờ nằm ở vị trí cuối (Index = Sch_Task_Count)
+        uint32_t finished_task_index = Sch_Task_Count;
+
+        // Tăng cờ RunMe trước khi lên lịch lại O(1)
+        SCH_tasks[finished_task_index].RunMe++;
+
+        // 3. Lên lịch lại Task định kỳ (Periodic Task)
+        if (SCH_tasks[finished_task_index].Period > 0) {
+
+            // Đặt Delay mới = Period
+            SCH_tasks[finished_task_index].Delay = SCH_tasks[finished_task_index].Period;
+
+            // Thêm lại Task vào Heap O(log N)
+            Sch_Task_Count++; // Tăng lại số lượng
+            heap_up(finished_task_index);
+        } else {
+             // Đây là Task one-shot, ta xóa nó khỏi vị trí cuối cùng
+             SCH_tasks[finished_task_index].pTask = NULL;
+        }
+    }
+}
+
+// Hàm Dispatch (O(N) - Duyệt toàn bộ mảng để chạy task sẵn sàng và dọn dẹp)
+void SCH_Dispatch_Tasks(void) {
+    for (int i = 0; i < SCH_MAX_TASKS; i++) {
+
+        // 1. Chạy task đã được đánh dấu RunMe
+        if (SCH_tasks[i].RunMe > 0 && SCH_tasks[i].pTask != NULL) {
+            (*SCH_tasks[i].pTask)();
+            SCH_tasks[i].RunMe = 0;
+        }
+
+        // 2. Dọn dẹp Task bị đánh dấu xóa (NULL) và đang nằm trong phạm vi Heap
+        if (SCH_tasks[i].pTask == NULL && i < Sch_Task_Count) {
+             // Swap với phần tử cuối cùng (vị trí Sch_Task_Count - 1)
+             swap_tasks(i, Sch_Task_Count - 1);
+             Sch_Task_Count--;
+
+             // Nén lại Heap O(log N)
+             heap_down(i);
+        }
+    }
+}

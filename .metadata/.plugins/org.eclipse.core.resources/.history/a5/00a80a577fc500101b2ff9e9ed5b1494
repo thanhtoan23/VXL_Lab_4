@@ -1,0 +1,57 @@
+#include "traffic_config.h"
+#include "global.h"
+#include "software_timer.h"
+#include "sevenseg.h"
+#include "button.h"
+
+static int value = 0;
+static int temp_red = 7, temp_yellow = 2, temp_green = 5;
+static int display_index = 0;
+
+void displayConfig(int mode) { // mode 2,3,4
+    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_SET);
+
+    switch (display_index % 4) {
+        case 0: displayDigit(mode);    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET); break;
+        case 1: displayDigit(mode);    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET); break;
+        case 2: displayDigit(value/10);HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_RESET); break;
+        case 3: displayDigit(value%10);HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_RESET); break;
+    }
+}
+
+void fsm_traffic_config(void) {
+    switch (status) {
+        case CONFIG_RED:
+            if (timer2_flag) { HAL_GPIO_TogglePin(RED1_GPIO_Port, RED1_Pin); HAL_GPIO_TogglePin(RED2_GPIO_Port, RED2_Pin); setTimer2(50); }
+            if (timer5_flag) { displayConfig(2); display_index++; setTimer5(4); }
+            if (isButton2Press()) value = (value + 1) % 100;
+            if (isButton3Press()) { temp_red = value; value = 0; status = CONFIG_YELLOW; display_index = 0; }
+            break;
+
+        case CONFIG_YELLOW:
+            if (timer2_flag) { HAL_GPIO_TogglePin(YEL1_GPIO_Port, YEL1_Pin); HAL_GPIO_TogglePin(YEL2_GPIO_Port, YEL2_Pin); setTimer2(50); }
+            if (timer5_flag) { displayConfig(3); display_index++; setTimer5(4); }
+            if (isButton2Press()) value = (value + 1) % 100;
+            if (isButton3Press()) { temp_yellow = value; value = 0; status = CONFIG_GREEN; display_index = 0; }
+            break;
+
+        case CONFIG_GREEN:
+            if (timer2_flag) { HAL_GPIO_TogglePin(GRE1_GPIO_Port, GRE1_Pin); HAL_GPIO_TogglePin(GRE2_GPIO_Port, GRE2_Pin); setTimer2(50); }
+            if (timer5_flag) { displayConfig(4); display_index++; setTimer5(4); }
+            if (isButton2Press()) value = (value + 1) % 100;
+            if (isButton3Press()) temp_green = value;
+            if (isButton1Press()) {
+                if (temp_red == temp_green + temp_yellow && temp_red > 0) {
+                    red_dur    = temp_red    * 100;
+                    yellow_dur = temp_yellow * 100;
+                    green_dur  = temp_green  * 100;
+                }
+                status = INIT;
+                clearAllLeds();
+            }
+            break;
+    }
+}

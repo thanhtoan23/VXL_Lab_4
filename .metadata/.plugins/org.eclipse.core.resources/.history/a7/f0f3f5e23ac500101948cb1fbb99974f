@@ -1,0 +1,546 @@
+//#include <traffic_light.h>
+//
+//int red_main, red_cross=0;
+//int yellow_main, yellow_cross=0;
+//int green_main, green_cross=0;
+//int ind=0;
+//int num_buf=0;
+//
+//void fsm_traffic_run(){
+//	 switch(status){
+//	    case INIT:
+//	        HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+//
+//	        // KHỞI TẠO ĐẢM BẢO > 0
+//	        red_main = (red_dur/100) > 0 ? (red_dur/100) : 1;
+//	        red_cross = (red_dur/100) > 0 ? (red_dur/100) : 1;
+//	        yellow_main = (yellow_dur/100) > 0 ? (yellow_dur/100) : 1;
+//	        yellow_cross = (yellow_dur/100) > 0 ? (yellow_dur/100) : 1;
+//	        green_main = (green_dur/100) > 0 ? (green_dur/100) : 1;
+//	        green_cross = (green_dur/100) > 0 ? (green_dur/100) : 1;
+//
+//	        status = RED_GREEN;
+//	        ind = 0;
+//	        setTimer1(green_dur);
+//	        setTimer3(25);
+//	        setTimer4(100);
+//	        break;
+//
+//	    case RED_GREEN:
+//	        HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+//
+//	        if(timer1_flag ==1){
+//	            status = RED_YELLOW;
+//	            setTimer1(yellow_dur);
+//	            // KHÔNG reset ind ở đây
+//	        }
+//	        if(timer3_flag==1){
+//	            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+//	            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+//	            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+//	            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+//
+//	            switch(ind){
+//	            case 0:
+//	                num_buf = (red_main/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+//	                break;
+//	            case 1:
+//	                num_buf = (red_main%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+//	                break;
+//	            case 2:
+//	                num_buf = (green_cross/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+//	                break;
+//	            case 3:
+//	                num_buf = (green_cross%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+//	                break;
+//	            }
+//	            ind = (ind + 1) % 4;
+//	            setTimer3(25);
+//	        }
+//	        if(timer4_flag==1){
+//	            if(red_main > 0) red_main--;
+//	            if(green_cross > 0) green_cross--;
+//	            setTimer4(100);
+//	        }
+//	        if(isButton1Press() == 1) status = SET_INIT;
+//	        break;
+//
+//	    case RED_YELLOW:
+//	        HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+//
+//	        if(timer1_flag ==1){
+//	            status = GREEN_RED;
+//	            setTimer1(green_dur);
+//	            // KHÔNG reset ind ở đây
+//	        }
+//	        if(timer3_flag==1){
+//	            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+//	            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+//	            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+//	            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+//
+//	            switch(ind){
+//	            case 0:
+//	                num_buf = (red_main/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+//	                break;
+//	            case 1:
+//	                num_buf = (red_main%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+//	                break;
+//	            case 2:
+//	                num_buf = (yellow_cross/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+//	                break;
+//	            case 3:
+//	                num_buf = (yellow_cross%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+//	                break;
+//	            }
+//	            ind = (ind + 1) % 4;
+//	            setTimer3(25);
+//	        }
+//	        if(timer4_flag==1){
+//	            if(red_main > 0) red_main--;
+//	            if(yellow_cross > 0) yellow_cross--;
+//	            setTimer4(100);
+//	        }
+//	        if(isButton1Press() == 1) status = SET_INIT;
+//	        break;
+//
+//	    case GREEN_RED:
+//	        HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+//
+//	        if(timer1_flag ==1){
+//	            status = YELLOW_RED;
+//	            setTimer1(yellow_dur);
+//	            // KHÔNG reset ind ở đây
+//	        }
+//	        if(timer3_flag==1){
+//	            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+//	            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+//	            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+//	            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+//
+//	            switch(ind){
+//	            case 0:
+//	                num_buf = (green_main/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+//	                break;
+//	            case 1:
+//	                num_buf = (green_main%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+//	                break;
+//	            case 2:
+//	                num_buf = (red_cross/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+//	                break;
+//	            case 3:
+//	                num_buf = (red_cross%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+//	                break;
+//	            }
+//	            ind = (ind + 1) % 4;
+//	            setTimer3(25);
+//	        }
+//	        if(timer4_flag==1){
+//	            if(green_main > 0) green_main--;
+//	            if(red_cross > 0) red_cross--;
+//	            setTimer4(100);
+//	        }
+//	        if(isButton1Press() == 1) status = SET_INIT;
+//	        break;
+//
+//	    case YELLOW_RED:
+//	        HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+//	        HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+//	        HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+//
+//	        if(timer1_flag ==1){
+//	            status = RED_GREEN;
+//	            // RESET ĐƠN GIẢN KHÔNG +1
+//	            red_main = (red_dur/100) > 0 ? (red_dur/100) : 1;
+//	            red_cross = (red_dur/100) > 0 ? (red_dur/100) : 1;
+//	            yellow_main = (yellow_dur/100) > 0 ? (yellow_dur/100) : 1;
+//	            yellow_cross = (yellow_dur/100) > 0 ? (yellow_dur/100) : 1;
+//	            green_main = (green_dur/100) > 0 ? (green_dur/100) : 1;
+//	            green_cross = (green_dur/100) > 0 ? (green_dur/100) : 1;
+//	            setTimer1(green_dur);
+//	            // KHÔNG reset ind ở đây
+//	        }
+//	        if(timer3_flag==1){
+//	            HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+//	            HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+//	            HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+//	            HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+//
+//	            switch(ind){
+//	            case 0:
+//	                num_buf = (yellow_main/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+//	                break;
+//	            case 1:
+//	                num_buf = (yellow_main%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+//	                break;
+//	            case 2:
+//	                num_buf = (red_cross/10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+//	                break;
+//	            case 3:
+//	                num_buf = (red_cross%10) % 10;
+//	                if(num_buf < 0) num_buf = 0;
+//	                displayDigit(num_buf);
+//	                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+//	                break;
+//	            }
+//	            ind = (ind + 1) % 4;
+//	            setTimer3(25);
+//	        }
+//	        if(timer4_flag==1){
+//	            if(yellow_main > 0) yellow_main--;
+//	            if(red_cross > 0) red_cross--;
+//	            setTimer4(100);
+//	        }
+//	        if(isButton1Press() == 1) status = SET_INIT;
+//	        break;
+//	    default:
+//	        break;
+//	    }
+//	}
+
+
+
+#include <traffic_light.h>
+
+int red_main, red_cross = 0;
+int yellow_main, yellow_cross = 0;
+int green_main, green_cross = 0;
+int ind = 0;
+int num_buf = 0;
+
+// Hàm tính thời gian còn lại từ timer1_counter
+int calculate_remaining_time() {
+    int time_remaining = (timer1_counter / 100) + 1;
+    return (time_remaining > 0) ? time_remaining : 0;
+}
+
+void fsm_traffic_run() {
+    switch(status) {
+        case INIT:
+            // Tắt tất cả đèn ban đầu
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            // Khởi tạo biến hiển thị
+            red_main = green_dur / 100;
+            green_cross = green_dur / 100;
+            yellow_main = yellow_dur / 100;
+            yellow_cross = yellow_dur / 100;
+            green_main = green_dur / 100;
+            red_cross = red_dur / 100;
+
+            status = RED_GREEN;
+            ind = 0;
+            setTimer1(green_dur);  // Timer chính cho state
+            setTimer3(25);         // Timer cho hiển thị 7-segment
+            break;
+
+        case RED_GREEN:
+            // Main: ĐỎ, Cross: XANH
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+
+            if(timer1_flag == 1) {
+                status = RED_YELLOW;
+                setTimer1(yellow_dur);
+            }
+
+            // Cập nhật biến hiển thị từ timer chính
+            int time_remaining_rg = calculate_remaining_time();
+            red_main = time_remaining_rg;
+            green_cross = time_remaining_rg;
+
+            if(timer3_flag == 1) {
+                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+
+                switch(ind) {
+                    case 0:
+                        num_buf = (red_main / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+                        break;
+                    case 1:
+                        num_buf = (red_main % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+                        break;
+                    case 2:
+                        num_buf = (green_cross / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+                        break;
+                    case 3:
+                        num_buf = (green_cross % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+                        break;
+                }
+                ind = (ind + 1) % 4;
+                setTimer3(25);
+            }
+
+            if(isButton1Press() == 1) status = SET_INIT;
+            break;
+
+        case RED_YELLOW:
+            // Main: ĐỎ, Cross: VÀNG
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if(timer1_flag == 1) {
+                status = GREEN_RED;
+                setTimer1(green_dur);
+            }
+
+            // Cập nhật biến hiển thị từ timer chính
+            int time_remaining_ry = calculate_remaining_time();
+            red_main = time_remaining_ry;
+            yellow_cross = time_remaining_ry;
+
+            if(timer3_flag == 1) {
+                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+
+                switch(ind) {
+                    case 0:
+                        num_buf = (red_main / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+                        break;
+                    case 1:
+                        num_buf = (red_main % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+                        break;
+                    case 2:
+                        num_buf = (yellow_cross / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+                        break;
+                    case 3:
+                        num_buf = (yellow_cross % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+                        break;
+                }
+                ind = (ind + 1) % 4;
+                setTimer3(25);
+            }
+
+            if(isButton1Press() == 1) status = SET_INIT;
+            break;
+
+        case GREEN_RED:
+            // Main: XANH, Cross: ĐỎ
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if(timer1_flag == 1) {
+                status = YELLOW_RED;
+                setTimer1(yellow_dur);
+            }
+
+            // Cập nhật biến hiển thị từ timer chính
+            int time_remaining_gr = calculate_remaining_time();
+            green_main = time_remaining_gr;
+            red_cross = time_remaining_gr;
+
+            if(timer3_flag == 1) {
+                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+
+                switch(ind) {
+                    case 0:
+                        num_buf = (green_main / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+                        break;
+                    case 1:
+                        num_buf = (green_main % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+                        break;
+                    case 2:
+                        num_buf = (red_cross / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+                        break;
+                    case 3:
+                        num_buf = (red_cross % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+                        break;
+                }
+                ind = (ind + 1) % 4;
+                setTimer3(25);
+            }
+
+            if(isButton1Press() == 1) status = SET_INIT;
+            break;
+
+        case YELLOW_RED:
+            // Main: VÀNG, Cross: ĐỎ
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+
+            if(timer1_flag == 1) {
+                status = RED_GREEN;
+                // Reset lại thời gian cho chu kỳ mới
+                setTimer1(green_dur);
+            }
+
+            // Cập nhật biến hiển thị từ timer chính
+            int time_remaining_yr = calculate_remaining_time();
+            yellow_main = time_remaining_yr;
+            red_cross = time_remaining_yr;
+
+            if(timer3_flag == 1) {
+                HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, SET);
+                HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, SET);
+                HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, SET);
+                HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, SET);
+
+                switch(ind) {
+                    case 0:
+                        num_buf = (yellow_main / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, RESET);
+                        break;
+                    case 1:
+                        num_buf = (yellow_main % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, RESET);
+                        break;
+                    case 2:
+                        num_buf = (red_cross / 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, RESET);
+                        break;
+                    case 3:
+                        num_buf = (red_cross % 10) % 10;
+                        if(num_buf < 0) num_buf = 0;
+                        displayDigit(num_buf);
+                        HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, RESET);
+                        break;
+                }
+                ind = (ind + 1) % 4;
+                setTimer3(25);
+            }
+
+            if(isButton1Press() == 1) status = SET_INIT;
+            break;
+
+        default:
+            break;
+    }
+}

@@ -1,0 +1,140 @@
+#include "traffic_light.h"
+#include "global.h"
+#include "software_timer.h"
+#include "sevenseg.h"
+#include "button.h"
+
+static int counter_vertical = 0;   // thời gian còn lại của đường dọc
+static int counter_horizontal = 0; // thời gian còn lại của đường ngang
+static int display_index = 0;
+
+void clearAllLeds(void) {
+    HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_RESET);
+    HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_RESET);
+}
+
+void update7SEG(int index) {
+    HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_SET);
+    HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_SET);
+
+    int num = 0;
+    switch (index % 4) {
+        case 0: num = counter_vertical / 10;   HAL_GPIO_WritePin(EN0_GPIO_Port, EN0_Pin, GPIO_PIN_RESET); break;
+        case 1: num = counter_vertical % 10;   HAL_GPIO_WritePin(EN1_GPIO_Port, EN1_Pin, GPIO_PIN_RESET); break;
+        case 2: num = counter_horizontal / 10; HAL_GPIO_WritePin(EN2_GPIO_Port, EN2_Pin, GPIO_PIN_RESET); break;
+        case 3: num = counter_horizontal % 10; HAL_GPIO_WritePin(EN3_GPIO_Port, EN3_Pin, GPIO_PIN_RESET); break;
+    }
+    displayDigit(num);
+}
+
+void fsm_traffic_run(void) {
+    switch (status) {
+        case INIT:
+            clearAllLeds();
+            counter_vertical   = red_dur / 100;
+            counter_horizontal = green_dur / 100;
+
+            status = RED_GREEN;
+            setTimer1(100);  // 1 giây = 100 x 10ms
+            setTimer3(4);    // quét 7seg mỗi 4ms → mượt
+            display_index = 0;
+            break;
+
+        case RED_GREEN: // Đỏ dọc - Xanh ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(GRE2_GPIO_Port, GRE2_Pin, GPIO_PIN_SET);
+
+            if (timer1_flag) {
+                counter_vertical--;
+                counter_horizontal--;
+                setTimer1(100);
+
+                if (counter_horizontal <= 0) {
+                    status = RED_YELLOW;
+                    counter_horizontal = yellow_dur / 100;
+                }
+            }
+            if (timer3_flag) {
+                update7SEG(display_index++);
+                setTimer3(4);
+            }
+            break;
+
+        case RED_YELLOW: // Đỏ dọc - Vàng ngang
+            HAL_GPIO_WritePin(RED1_GPIO_Port, RED1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(YEL2_GPIO_Port, YEL2_Pin, GPIO_PIN_SET);
+
+            if (timer1_flag) {
+                counter_vertical--;
+                counter_horizontal--;
+                setTimer1(100);
+
+                if (counter_horizontal <= 0) {
+                    status = GREEN_RED;
+                    counter_vertical   = green_dur / 100;
+                    counter_horizontal = red_dur / 100;
+                }
+            }
+            if (timer3_flag) {
+                update7SEG(display_index++);
+                setTimer3(4);
+            }
+            break;
+
+        case GREEN_RED: // Xanh dọc - Đỏ ngang
+            HAL_GPIO_WritePin(GRE1_GPIO_Port, GRE1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+
+            if (timer1_flag) {
+                counter_vertical--;
+                counter_horizontal--;
+                setTimer1(100);
+
+                if (counter_vertical <= 0) {
+                    status = YELLOW_RED;
+                    counter_vertical = yellow_dur / 100;
+                }
+            }
+            if (timer3_flag) {
+                update7SEG(display_index++);
+                setTimer3(4);
+            }
+            break;
+
+        case YELLOW_RED: // Vàng dọc - Đỏ ngang
+            HAL_GPIO_WritePin(YEL1_GPIO_Port, YEL1_Pin, GPIO_PIN_SET);
+            HAL_GPIO_WritePin(RED2_GPIO_Port, RED2_Pin, GPIO_PIN_SET);
+
+            if (timer1_flag) {
+                counter_vertical--;
+                counter_horizontal--;
+                setTimer1(100);
+
+                if (counter_vertical <= 0) {
+                    status = RED_GREEN;
+                    counter_vertical   = red_dur / 100;
+                    counter_horizontal = green_dur / 100;
+                }
+            }
+            if (timer3_flag) {
+                update7SEG(display_index++);
+                setTimer3(4);
+            }
+            break;
+    }
+
+    // Vào chế độ config
+    if (isButton1Press()) {
+        status = CONFIG_RED;
+        clearAllLeds();
+        setTimer2(50);
+        setTimer5(4);
+        display_index = 0;
+    }
+}
